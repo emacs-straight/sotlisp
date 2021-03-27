@@ -43,7 +43,7 @@
 ;; place where you would use a function, so hitting SPC after "(r"
 ;; expands to "(require '", but hitting SPC after "(delete-region r"
 ;; will NOT expand the `r', because that's obviously not a function.
-;; Furtheromre, "#'r" will expand to "#'require" (note how it ommits
+;; Furthermore, "#'r" will expand to "#'require" (note how it omits
 ;; that extra quote, since it would be useless here).
 ;;
 ;;; Commands
@@ -65,7 +65,7 @@
 ;; - C-c v :: Same, but for variable.
 ;;
 ;; With these commands, you just write your code as you think of it.  Once
-;; you hit a "stop-point" of sorts in your tought flow, you hit `C-c f/v`
+;; you hit a "stop-point" of sorts in your thought flow, you hit `C-c f/v`
 ;; on any undefined functions/variables, write their definitions, and hit
 ;; `C-u C-SPC` to go back to the main function.
 ;;
@@ -88,7 +88,8 @@
   "Non-nil if this buffer auto-inserts parentheses."
   (or (bound-and-true-p electric-pair-mode)
       (bound-and-true-p paredit-mode)
-      (bound-and-true-p smartparens-mode)))
+      (bound-and-true-p smartparens-mode)
+      (bound-and-true-p lispy-mode)))
 
 (defun sotlisp--looking-back (regexp)
   (string-match
@@ -99,7 +100,12 @@
   "Non-nil if point is at the start of a sexp.
 Specially, avoids matching inside argument lists."
   (and (eq (char-before) ?\()
-       (not (sotlisp--looking-back "(\\(defun\\s-+.*\\|\\(lambda\\|dolist\\|dotimes\\)\\s-+\\)("))
+       (not (sotlisp--looking-back
+             (rx (or (seq (? "cl-") (or "defun" "defmacro" "defsubst") (? "*")
+                          symbol-end (* any))
+                     (seq (or "lambda" "dolist" "dotimes")
+                          symbol-end (+ (syntax whitespace))))
+                 "(")))
        (save-excursion
          (forward-char -1)
          (condition-case nil
@@ -108,7 +114,7 @@ Specially, avoids matching inside argument lists."
                (forward-sexp -1)
                (not
                 (looking-at-p (rx (* (or (syntax word) (syntax symbol) "-"))
-                                  "let" symbol-end))))
+                                  "let" (? "*") symbol-end))))
            (error t)))
        (not (string-match (rx (syntax symbol)) (string last-command-event)))))
 
@@ -134,10 +140,12 @@ Returns non-nil if, after moving backwards by a sexp, either
 non-nil."
   (save-excursion
     (ignore-errors
-      (skip-chars-backward (rx alnum))
-      (and (sotlisp--code-p)
-           (or (sotlisp--function-form-p)
-               (sotlisp--function-quote-p))))))
+      (and (not (string-match (rx (syntax symbol)) (string last-command-event)))
+           (sotlisp--code-p)
+           (progn
+             (skip-chars-backward (rx alnum))
+             (or (sotlisp--function-form-p)
+                 (sotlisp--function-quote-p)))))))
 
 (defun sotlisp--whitespace-p ()
   "Non-nil if current `self-insert'ed char is whitespace."
